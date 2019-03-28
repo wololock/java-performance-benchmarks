@@ -41,7 +41,7 @@ public class JavaListPartitionBenchmark {
     private static final int expectedSizeHuge = 9766;
 
     @Benchmark
-    public void smallListImperative() {
+    public void A1_smallListImperative() {
         //given:
         final List<List<Integer>> result = new ArrayList<>();
         final AtomicInteger counter = new AtomicInteger();
@@ -61,7 +61,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void smallListStreamGroupingBy() {
+    public void A2_smallListStreamGroupingBy() {
         //given:
         final AtomicInteger counter = new AtomicInteger();
 
@@ -77,7 +77,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void smallListStreamPartitioned() {
+    public void A3_smallListStreamPartitioned() {
         //when:
         final List<List<Integer>> result = smallList.stream()
             .collect(partitioned(CHUNK_SIZE_SMALL));
@@ -89,7 +89,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void smallListToPartition() {
+    public void A4_smallListToPartition() {
         //when:
         final List<List<Integer>> result = Partition.ofSize(smallList, CHUNK_SIZE_SMALL);
 
@@ -100,7 +100,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void largeListImperative() {
+    public void B1_largeListImperative() {
         //given:
         final List<List<Integer>> result = new ArrayList<>();
         final AtomicInteger counter = new AtomicInteger();
@@ -120,7 +120,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void largeListStreamGroupingBy() {
+    public void B2_largeListStreamGroupingBy() {
         //given:
         final AtomicInteger counter = new AtomicInteger();
 
@@ -136,7 +136,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void largeListStreamPartitioned() {
+    public void B3_largeListStreamPartitioned() {
         //when:
         final List<List<Integer>> result = largeList.stream()
             .collect(partitioned(CHUNK_SIZE_LARGE));
@@ -148,7 +148,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void largeListToPartition() {
+    public void B4_largeListToPartition() {
         //when:
         final List<List<Integer>> result = Partition.ofSize(largeList, CHUNK_SIZE_LARGE);
 
@@ -159,7 +159,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void hugeListImperative() {
+    public void C1_hugeListImperative() {
         //given:
         final List<List<Integer>> result = new ArrayList<>();
         final AtomicInteger counter = new AtomicInteger();
@@ -179,7 +179,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void hugeListStreamGroupingBy() {
+    public void C2_hugeListStreamGroupingBy() {
         //given:
         final AtomicInteger counter = new AtomicInteger();
 
@@ -195,7 +195,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void hugeListStreamPartitioned() {
+    public void C3_hugeListStreamPartitioned() {
         //when:
         final List<List<Integer>> result = hugeList.stream()
             .collect(partitioned(CHUNK_SIZE_HUGE));
@@ -207,7 +207,7 @@ public class JavaListPartitionBenchmark {
     }
 
     @Benchmark
-    public void hugeListToPartition() {
+    public void C4_hugeListToPartition() {
         //when:
         final List<List<Integer>> result = Partition.ofSize(hugeList, CHUNK_SIZE_HUGE);
 

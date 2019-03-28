@@ -32,9 +32,9 @@ jmh {
     include = ['bench\\.*']
     benchmarkMode = ['avgt']
     timeUnit = 'us'
-    iterations = 30
+    iterations = 42
     timeOnIteration = '1s'
-    warmup = '10s'
+    warmup = '30s'
     warmupIterations = 1
     batchSize = 1
     fork = 1
