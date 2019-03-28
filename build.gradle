@@ -1,0 +1,41 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath "me.champeau.gradle:jmh-gradle-plugin:0.4.8"
+    }
+}
+
+apply plugin: "idea"
+apply plugin: "java"
+apply plugin: "me.champeau.gradle.jmh"
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile group: 'com.google.guava', name: 'guava', version: '27.1-jre'
+    compile group: 'org.apache.commons', name: 'commons-collections4', version: '4.3'
+
+    testCompile group: 'org.assertj', name: 'assertj-core', version: '3.12.2'
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+
+
+}
+
+jmh {
+    include = ['bench\\.*']
+    benchmarkMode = ['avgt']
+    timeUnit = 'us'
+    iterations = 30
+    timeOnIteration = '1s'
+    warmup = '10s'
+    warmupIterations = 1
+    batchSize = 1
+    fork = 1
+}
