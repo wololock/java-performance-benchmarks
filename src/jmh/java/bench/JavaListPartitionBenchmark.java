@@ -2,12 +2,14 @@ package bench;
 
 import com.github.wololock.Partition;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -16,207 +18,248 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Java6Assertions.assertThat;
 
-@State(Scope.Benchmark)
 public class JavaListPartitionBenchmark {
 
-    private static final int CHUNK_SIZE_SMALL = 3;
-    private static final int SMALL_LIST = 20;
+    private static final Random random = new Random();
 
-    private static final int CHUNK_SIZE_LARGE = 23;
-    private static final int LARGE_LIST = 10_000;
+    @State(Scope.Benchmark)
+    static public class A_SmallList {
+        private static final int SMALL_LIST_SIZE = 20;
 
-    private static final int CHUNK_SIZE_HUGE = 1024;
-    private static final int HUGE_LIST = 10_000_000;
+        private static final List<Integer> list = IntStream.range(0, SMALL_LIST_SIZE + random.nextInt(13)).boxed().collect(toList());
 
-    private static final List<Integer> smallList = IntStream.range(0, SMALL_LIST).boxed().collect(toList());
-    private static final List<Integer> expectedSmallChunk = Arrays.asList(6,7,8);
-    private static final int expectedSizeSmall = 7;
+        private int chunkSize;
+        private List<Integer> expectedChunk;
+        private int chunkIndex;
+        private int partitionedSize;
 
-    private static final List<Integer> largeList = IntStream.range(0, LARGE_LIST).boxed().collect(toList());
-    private static final List<Integer> expectedLargeChunk = IntStream.rangeClosed(46,68).boxed().collect(toList());
-    private static final int expectedSizeLarge = 435;
-
-    private static final List<Integer> hugeList = IntStream.range(0, HUGE_LIST).boxed().collect(toList());
-    private static final List<Integer> expectedHugeChunk = IntStream.rangeClosed(2048,3071).boxed().collect(toList());
-    private static final int expectedSizeHuge = 9766;
-
-    @Benchmark
-    public void A1_smallListImperative() {
-        //given:
-        final List<List<Integer>> result = new ArrayList<>();
-        final AtomicInteger counter = new AtomicInteger();
-
-        //when:
-        for (int number : smallList) {
-            if (counter.getAndIncrement() % CHUNK_SIZE_SMALL == 0) {
-                result.add(new ArrayList<>());
-            }
-            result.get(result.size() - 1).add(number);
+        @Setup(Level.Iteration)
+        public void setup() {
+            chunkSize = random.nextInt(3) + 2;
+            partitionedSize = (int) Math.ceil((double) list.size() / chunkSize);
+            chunkIndex = random.nextInt(partitionedSize - 1);
+            expectedChunk = list.subList(chunkSize * chunkIndex, chunkSize * (chunkIndex + 1));
         }
 
-        //then:
-        assertThat(result).hasSize(expectedSizeSmall);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedSmallChunk);
-    }
+        @Benchmark
+        public void A1_smallListImperative() {
+            //given:
+            final List<List<Integer>> result = new ArrayList<>();
+            final AtomicInteger counter = new AtomicInteger();
 
-    @Benchmark
-    public void A2_smallListStreamGroupingBy() {
-        //given:
-        final AtomicInteger counter = new AtomicInteger();
-
-        //when:
-        final List<List<Integer>> result = new ArrayList<>(smallList.stream()
-            .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / CHUNK_SIZE_SMALL))
-            .values());
-
-        //then:
-        assertThat(result).hasSize(expectedSizeSmall);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedSmallChunk);
-    }
-
-    @Benchmark
-    public void A3_smallListStreamPartitioned() {
-        //when:
-        final List<List<Integer>> result = smallList.stream()
-            .collect(partitioned(CHUNK_SIZE_SMALL));
-
-        //then:
-        assertThat(result).hasSize(expectedSizeSmall);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedSmallChunk);
-    }
-
-    @Benchmark
-    public void A4_smallListToPartition() {
-        //when:
-        final List<List<Integer>> result = Partition.ofSize(smallList, CHUNK_SIZE_SMALL);
-
-        //then:
-        assertThat(result).hasSize(expectedSizeSmall);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedSmallChunk);
-    }
-
-    @Benchmark
-    public void B1_largeListImperative() {
-        //given:
-        final List<List<Integer>> result = new ArrayList<>();
-        final AtomicInteger counter = new AtomicInteger();
-
-        //when:
-        for (int number : largeList) {
-            if (counter.getAndIncrement() % CHUNK_SIZE_LARGE == 0) {
-                result.add(new ArrayList<>());
+            //when:
+            for (int number : list) {
+                if (counter.getAndIncrement() % chunkSize == 0) {
+                    result.add(new ArrayList<>());
+                }
+                result.get(result.size() - 1).add(number);
             }
-            result.get(result.size() - 1).add(number);
+
+            //then:
+            assertThat(result).hasSize(partitionedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
         }
 
-        //then:
-        assertThat(result).hasSize(expectedSizeLarge);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedLargeChunk);
-    }
+        @Benchmark
+        public void A2_smallListStreamGroupingBy() {
+            //given:
+            final AtomicInteger counter = new AtomicInteger();
 
-    @Benchmark
-    public void B2_largeListStreamGroupingBy() {
-        //given:
-        final AtomicInteger counter = new AtomicInteger();
+            //when:
+            final List<List<Integer>> result = new ArrayList<>(list.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / chunkSize))
+                .values());
 
-        //when:
-        final List<List<Integer>> result = new ArrayList<>(largeList.stream()
-            .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / CHUNK_SIZE_LARGE))
-            .values());
-
-        //then:
-        assertThat(result).hasSize(expectedSizeLarge);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedLargeChunk);
-    }
-
-    @Benchmark
-    public void B3_largeListStreamPartitioned() {
-        //when:
-        final List<List<Integer>> result = largeList.stream()
-            .collect(partitioned(CHUNK_SIZE_LARGE));
-
-        //then:
-        assertThat(result).hasSize(expectedSizeLarge);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedLargeChunk);
-    }
-
-    @Benchmark
-    public void B4_largeListToPartition() {
-        //when:
-        final List<List<Integer>> result = Partition.ofSize(largeList, CHUNK_SIZE_LARGE);
-
-        //then:
-        assertThat(result).hasSize(expectedSizeLarge);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedLargeChunk);
-    }
-
-    @Benchmark
-    public void C1_hugeListImperative() {
-        //given:
-        final List<List<Integer>> result = new ArrayList<>();
-        final AtomicInteger counter = new AtomicInteger();
-
-        //when:
-        for (int number : hugeList) {
-            if (counter.getAndIncrement() % CHUNK_SIZE_HUGE == 0) {
-                result.add(new ArrayList<>());
-            }
-            result.get(result.size() - 1).add(number);
+            //then:
+            assertThat(result).hasSize(partitionedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
         }
 
-        //then:
-        assertThat(result).hasSize(expectedSizeHuge);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedHugeChunk);
+        @Benchmark
+        public void A3_smallListStreamPartitioned() {
+            //when:
+            final List<List<Integer>> result = list.stream()
+                .collect(partitioned(chunkSize));
+
+            //then:
+            assertThat(result).hasSize(partitionedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
+
+        @Benchmark
+        public void A4_smallListToPartition() {
+            //when:
+            final List<List<Integer>> result = Partition.ofSize(list, chunkSize);
+
+            //then:
+            assertThat(result).hasSize(partitionedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
     }
 
-    @Benchmark
-    public void C2_hugeListStreamGroupingBy() {
-        //given:
-        final AtomicInteger counter = new AtomicInteger();
+    @State(Scope.Benchmark)
+    static public class B_LargeList {
 
-        //when:
-        final List<List<Integer>> result = new ArrayList<>(hugeList.stream()
-            .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / CHUNK_SIZE_HUGE))
-            .values());
+        private static final int LARGE_LIST_SIZE = 10_000;
 
-        //then:
-        assertThat(result).hasSize(expectedSizeHuge);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedHugeChunk);
+        private static final List<Integer> list = IntStream.range(0, LARGE_LIST_SIZE + random.nextInt(199)).boxed().collect(toList());
+
+        private int chunkSize;
+        private List<Integer> expectedChunk;
+        private int chunkIndex;
+        private int expectedSize;
+
+        @Setup(Level.Iteration)
+        public void setup() {
+            chunkSize = random.nextInt(5) + 20;
+            expectedSize = (int) Math.ceil((double) list.size() / chunkSize);
+            chunkIndex = random.nextInt(expectedSize - 1);
+            expectedChunk = list.subList(chunkSize * chunkIndex, chunkSize * (chunkIndex + 1));
+        }
+
+        @Benchmark
+        public void B1_largeListImperative() {
+            //given:
+            final List<List<Integer>> result = new ArrayList<>();
+            final AtomicInteger counter = new AtomicInteger();
+
+            //when:
+            for (int number : list) {
+                if (counter.getAndIncrement() % chunkSize == 0) {
+                    result.add(new ArrayList<>());
+                }
+                result.get(result.size() - 1).add(number);
+            }
+
+            //then:
+            assertThat(result).hasSize(expectedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
+
+        @Benchmark
+        public void B2_largeListStreamGroupingBy() {
+            //given:
+            final AtomicInteger counter = new AtomicInteger();
+
+            //when:
+            final List<List<Integer>> result = new ArrayList<>(list.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / chunkSize))
+                .values());
+
+            //then:
+            assertThat(result).hasSize(expectedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
+
+        @Benchmark
+        public void B3_largeListStreamPartitioned() {
+            //when:
+            final List<List<Integer>> result = list.stream()
+                .collect(partitioned(chunkSize));
+
+            //then:
+            assertThat(result).hasSize(expectedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
+
+        @Benchmark
+        public void B4_largeListToPartition() {
+            //when:
+            final List<List<Integer>> result = Partition.ofSize(list, chunkSize);
+
+            //then:
+            assertThat(result).hasSize(expectedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
     }
 
-    @Benchmark
-    public void C3_hugeListStreamPartitioned() {
-        //when:
-        final List<List<Integer>> result = hugeList.stream()
-            .collect(partitioned(CHUNK_SIZE_HUGE));
+    @State(Scope.Benchmark)
+    static public class C_HugeList {
 
-        //then:
-        assertThat(result).hasSize(expectedSizeHuge);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedHugeChunk);
+        private static final int HUGE_LIST_SIZE = 10_000_000;
+
+        private static final List<Integer> list = IntStream.range(0, HUGE_LIST_SIZE + random.nextInt(100_000)).boxed().collect(toList());
+
+        private int chunkSize;
+        private List<Integer> expectedChunk;
+        private int chunkIndex;
+        private int expectedSize;
+
+        @Setup(Level.Iteration)
+        public void setup() {
+            chunkSize = random.nextInt(16) + 1024;
+            expectedSize = (int) Math.ceil((double) list.size() / chunkSize);
+            chunkIndex = random.nextInt(expectedSize - 1);
+            expectedChunk = list.subList(chunkSize * chunkIndex, chunkSize * (chunkIndex + 1));
+        }
+
+        @Benchmark
+        public void C1_hugeListImperative() {
+            //given:
+            final List<List<Integer>> result = new ArrayList<>();
+            final AtomicInteger counter = new AtomicInteger();
+
+            //when:
+            for (int number : list) {
+                if (counter.getAndIncrement() % chunkSize == 0) {
+                    result.add(new ArrayList<>());
+                }
+                result.get(result.size() - 1).add(number);
+            }
+
+            //then:
+            assertThat(result).hasSize(expectedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
+
+        @Benchmark
+        public void C2_hugeListStreamGroupingBy() {
+            //given:
+            final AtomicInteger counter = new AtomicInteger();
+
+            //when:
+            final List<List<Integer>> result = new ArrayList<>(list.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / chunkSize))
+                .values());
+
+            //then:
+            assertThat(result).hasSize(expectedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
+
+        @Benchmark
+        public void C3_hugeListStreamPartitioned() {
+            //when:
+            final List<List<Integer>> result = list.stream()
+                .collect(partitioned(chunkSize));
+
+            //then:
+            assertThat(result).hasSize(expectedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
+
+        @Benchmark
+        public void C4_hugeListToPartition() {
+            //when:
+            final List<List<Integer>> result = Partition.ofSize(list, chunkSize);
+
+            //then:
+            assertThat(result).hasSize(expectedSize);
+            //and:
+            assertThat(result.get(chunkIndex)).isEqualTo(expectedChunk);
+        }
     }
-
-    @Benchmark
-    public void C4_hugeListToPartition() {
-        //when:
-        final List<List<Integer>> result = Partition.ofSize(hugeList, CHUNK_SIZE_HUGE);
-
-        //then:
-        assertThat(result).hasSize(expectedSizeHuge);
-        //and:
-        assertThat(result.get(2)).isEqualTo(expectedHugeChunk);
-    }
-
 
     private static <T> Collector<T, List<T>, List<List<T>>> partitioned(int chunkSize) {
         return Collector.of(
@@ -227,5 +270,4 @@ public class JavaListPartitionBenchmark {
             Collector.Characteristics.UNORDERED
         );
     }
-
 }
